@@ -1,16 +1,16 @@
 
 # coding: utf-8
 
-# In[34]:
+# In[52]:
 
 
 # Import Dependencies
 import os
 import pandas as pd
 import numpy as np
+import pymongo
 
-
-# In[35]:
+# In[53]:
 
 
 from bs4 import BeautifulSoup
@@ -18,24 +18,42 @@ import requests
 import time
 
 
+# In[54]:
+
+
+from splinter import Browser
+from selenium import webdriver
+
+
 # Scrapping
 
-# In[36]:
+def init_browser():
+    # @NOTE: Replace the path with your actual path to the chromedriver
+    executable_path = {"executable_path": "chromedriver"}
+    return Browser("chrome", **executable_path, headless=False)
+# In[55]:
+def scrape():
+    browser = init_browser()
+    # create mars_data dict that we can insert into mongo
+    mars_data = {}
+    urls = []
+    # Latest news
+    url = "https://mars.nasa.gov/news/?page=0&per_page=40&order=publish_date+desc%2Ccreated_at+desc&search=&category=19%2C165%2C184%2C204&blank_scope=Latest"
+    browser.visit(url)
 
 
-url = "https://mars.nasa.gov/news/?page=0&per_page=40&order=publish_date+desc%2Ccreated_at+desc&search=&category=19%2C165%2C184%2C204&blank_scope=Latest"
 
 
-# In[37]:
+# In[56]:
 
 
 #retrieve page with the request module
-response = requests.get(url)
+response = requests.get("https://www.jpl.nasa.gov/spaceimages/?search=&category=Mars")
 soup = BeautifulSoup(response.text, 'html.parser')
 #print(soup.prettify())
 
 
-# In[38]:
+# In[57]:
 
 
 nasa_news_title = soup.find ("div", class_= "content_title").text
@@ -46,14 +64,7 @@ print(nasa_news_paragraph)
 
 # JPL MARS SPACE IMAGES
 
-# In[39]:
-
-
-from splinter import Browser
-from selenium import webdriver
-
-
-# In[40]:
+# In[58]:
 
 
 #setting up splinter path
@@ -62,7 +73,7 @@ browser = Browser("chrome", **executable_path, headless=False)
 browser.visit(url)
 
 
-# In[41]:
+# In[59]:
 
 
 #URL
@@ -70,35 +81,32 @@ url = "https://www.jpl.nasa.gov/spaceimages/?search=&category=Mars"
 browser.visit(url) 
 
 
-# In[42]:
+# In[60]:
 
 
 mars_images = requests.get('https://www.jpl.nasa.gov/spaceimages/?search=&category=Mars')
-mars_soup = BeautifulSoup(mars_images.content, 'html.parser')
+mars_soup = BeautifulSoup(mars_images.content, 'html.parser') 
 
 
-# In[43]:
+# In[61]:
 
 
-for link in mars_soup.find('div', class_='img'):
-    print(link)
+image = mars_soup .find('div', class_='carousel_items')
+image_url = image.article['style']
+url=image_url.split('/',1)[1].split("'",1)[0]
+featured_image_url= 'https://www.jpl.nasa.gov' + '/' + url 
+print(featured_image_url )
 
 
-# In[44]:
+# In[62]:
 
 
-mars_featured_image = "/spaceimages/images/wallpaper/PIA22807-640x350.jpg"
+mars_featured_image = "https://www.jpl.nasa.gov/spaceimages/images/wallpaper/PIA17843-1920x1200.jpg" 
 
 
 # MARS WEATHER
 
-# In[45]:
-
-
-from splinter import Browser
-
-
-# In[46]:
+# In[63]:
 
 
 executable_path = {"executable_path": "chromedriver"}
@@ -107,24 +115,41 @@ weather_url = 'https://twitter.com/marswxreport?lang=en'
 browser.visit(weather_url)
 
 
-# In[47]:
+# In[64]:
 
 
-html = browser.html
-weather_soup = BeautifulSoup(html, 'html.parser')
-weather = weather_soup.find('div', class_='js-tweet-text-container')
-mars_weather= weather.p.text.lstrip()
+#scrape Mars Weather Twitter Account and scrape latest Mars weather tweet
+weather_url= 'https://twitter.com/MarsWxReport/status/1041843517113475075'
 
 
-# In[48]:
+# In[65]:
 
 
+weather_response = requests.get(weather_url)
+weather_soup = BeautifulSoup(weather_response.text, 'html.parser')
+
+
+# In[66]:
+
+
+print(weather_soup.prettify())
+
+
+# In[67]:
+
+
+mars_weather = weather_soup.find('title').get_text()
+mars_weather = mars_weather.split('"')[1]
+#mars_weather = weather_request.find('p', class_="tweet-text").text
 print(mars_weather)
+
+
+#is_night = weather["temp"].str.contains("Low")
 
 
 # MARS FACTS
 
-# In[49]:
+# In[68]:
 
 
 #Mars Facts
@@ -134,7 +159,7 @@ for facts in facts_soup:
     print(facts_soup)
 
 
-# In[50]:
+# In[69]:
 
 
 df_mars_facts = facts_soup[0]
@@ -142,7 +167,7 @@ df_mars_facts.columns = ["Parameter", "Values"]
 df_mars_facts.set_index(["Parameter"])
 
 
-# In[51]:
+# In[70]:
 
 
 mars_html_table = df_mars_facts.to_html()
@@ -150,9 +175,16 @@ mars_html_table = mars_html_table.replace("\n", "")
 mars_html_table
 
 
+# In[71]:
+
+
+df_mars_facts.to_html('table.html')
+get_ipython().system(' open table.html ')
+
+
 # MARS HEMISPHERE
 
-# In[54]:
+# In[72]:
 
 
 #setting up splinter path
@@ -160,7 +192,7 @@ executable_path = {"executable_path": "chromedriver"}
 browser = Browser("chrome", **executable_path, headless=False)
 
 
-# In[55]:
+# In[ ]:
 
 
 hemi_image_urls = []
@@ -190,10 +222,15 @@ for url in hemi_urls:
 {'title': 'Valles Marineris Hemisphere Enhanced', 'image_url': 'http://astropedia.astrogeology.usgs.gov/download/Mars/Viking/valles_marineris_enhanced.tif/full.jpg'}
 
 
-# In[56]:
+# In[ ]:
 
 
 hemi_image_urls[0]
 
 
-# In[57]:
+# In[ ]:
+
+
+# Convert this jupyter notebook file to a python script called 'scrape_mars.py'
+get_ipython().system(' jupyter nbconvert --to script --template basic mission_to_mars.ipynb --output scrape_mars')
+
